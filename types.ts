@@ -1,15 +1,28 @@
 export interface Product {
   id: string;
   name: string;
-  price: number;
+  price: number; // Legacy - selling price
+  costPrice: number; // Cost price for revenue calculation
+  sellingPrice: number; // Selling price
+  gst?: number; // GST percentage (optional)
   stock: number;
   category: string;
   barcode?: string;
+  image?: string; // Base64 or URL of product image
 }
 
 export interface CartItem extends Product {
   quantity: number;
   discount: number;
+}
+
+export interface CustomerDue {
+  id: string;
+  amount: number;
+  description: string; // What the due is for
+  items?: { name: string; quantity: number; price: number }[]; // Items purchased on credit
+  date: string;
+  paid: boolean;
 }
 
 export interface Customer {
@@ -18,6 +31,7 @@ export interface Customer {
   phone: string;
   balance: number; // Positive = Due from customer
   lastTransactionDate: string;
+  dues?: CustomerDue[]; // Track individual dues with details
 }
 
 export interface Vendor {

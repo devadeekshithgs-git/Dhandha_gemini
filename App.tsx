@@ -8,7 +8,7 @@ import Customers from './components/Customers';
 import Vendors from './components/Vendors';
 import Profile from './components/Profile';
 
-import { Product, CartItem, Customer, Vendor, PaymentMethod, MerchantProfile } from './types';
+import { Product, CartItem, Customer, Vendor, PaymentMethod, MerchantProfile, CustomerDue } from './types';
 import { MOCK_PRODUCTS, MOCK_CUSTOMERS, MOCK_VENDORS, MOCK_SALES_DATA } from './constants';
 
 enum Tab {
@@ -22,13 +22,13 @@ enum Tab {
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.HOME);
   const [showProfile, setShowProfile] = useState(false);
-  
+
   // Application Data State
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
   const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
   const [vendors, setVendors] = useState<Vendor[]>(MOCK_VENDORS);
   const [salesData, setSalesData] = useState(MOCK_SALES_DATA);
-  
+
   const [merchantProfile, setMerchantProfile] = useState<MerchantProfile>({
     shopName: 'Shree Ganesh Kirana',
     ownerName: 'Rajesh Gupta',
@@ -36,6 +36,8 @@ const App: React.FC = () => {
     phone: '9876543210',
     address: '123, Market Road, Mumbai'
   });
+
+  const [cashInHand, setCashInHand] = useState<number>(0);
 
   // Computed Totals
   const totalReceivables = customers.reduce((acc, c) => acc + (c.balance > 0 ? c.balance : 0), 0);
@@ -48,7 +50,7 @@ const App: React.FC = () => {
 
   const handleDeleteProduct = (id: string) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
-        setProducts(prev => prev.filter(p => p.id !== id));
+      setProducts(prev => prev.filter(p => p.id !== id));
     }
   };
 
@@ -65,9 +67,9 @@ const App: React.FC = () => {
   };
 
   const handleDeleteCustomer = (id: string) => {
-     if (window.confirm('Are you sure you want to delete this customer?')) {
-        setCustomers(prev => prev.filter(c => c.id !== id));
-     }
+    if (window.confirm('Are you sure you want to delete this customer?')) {
+      setCustomers(prev => prev.filter(c => c.id !== id));
+    }
   };
 
   const handleAddVendor = (newVendor: Vendor) => {
@@ -80,32 +82,57 @@ const App: React.FC = () => {
 
   const handleDeleteVendor = (id: string) => {
     if (window.confirm('Are you sure you want to delete this vendor?')) {
-        setVendors(prev => prev.filter(v => v.id !== id));
+      setVendors(prev => prev.filter(v => v.id !== id));
     }
   };
 
-  const handleTransactionComplete = (items: CartItem[], total: number, customerId: string | null, paymentMethod: PaymentMethod) => {
+  const handleTransactionComplete = (items: CartItem[], total: number, customerId: string | null, paymentMethod: PaymentMethod, cashGiven?: number) => {
     const itemsMap = new Map(items.map(i => [i.id, i.quantity]));
     setProducts(prev => prev.map(p => {
-        const qty = itemsMap.get(p.id);
-        return qty ? { ...p, stock: p.stock - qty } : p;
+      const qty = itemsMap.get(p.id);
+      return qty ? { ...p, stock: p.stock - qty } : p;
     }));
 
     if (paymentMethod === PaymentMethod.CREDIT && customerId) {
-        setCustomers(prev => prev.map(c => 
-            c.id === customerId 
-            ? { ...c, balance: c.balance + total, lastTransactionDate: new Date().toISOString().split('T')[0] } 
-            : c
-        ));
+      setCustomers(prev => prev.map(c => {
+        if (c.id === customerId) {
+          // Create new due entry with items purchased
+          const newDue: CustomerDue = {
+            id: Date.now().toString(),
+            amount: total,
+            description: `Credit purchase - ${items.length} item(s)`,
+            items: items.map(item => ({
+              name: item.name,
+              quantity: item.quantity,
+              price: item.price * item.quantity
+            })),
+            date: new Date().toISOString().split('T')[0],
+            paid: false
+          };
+
+          return {
+            ...c,
+            balance: c.balance + total,
+            lastTransactionDate: new Date().toISOString().split('T')[0],
+            dues: [...(c.dues || []), newDue]
+          };
+        }
+        return c;
+      }));
     }
 
     // Mock Sales Data Update
-    const today = 'Sun'; 
-    setSalesData(prev => prev.map(d => 
-        d.day === today ? { ...d, amount: d.amount + total } : d
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+    setSalesData(prev => prev.map(d =>
+      d.day === today ? { ...d, amount: d.amount + total } : d
     ));
 
-    alert(`Transaction Successful! ₹${total} received via ${paymentMethod}.`);
+    // Update Cash In Hand
+    if (paymentMethod === PaymentMethod.CASH) {
+      setCashInHand(prev => prev + total);
+    }
+
+    // alert(`Transaction Successful! ₹${total} received via ${paymentMethod}.`);
   };
 
   const handleProfileSave = (updatedProfile: MerchantProfile) => {
@@ -119,7 +146,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case Tab.HOME:
-        return <Dashboard salesData={salesData} receivables={totalReceivables} payables={totalPayables} profile={merchantProfile} onOpenProfile={() => setShowProfile(true)} />;
+        return <Dashboard salesData={salesData} receivables={totalReceivables} payables={totalPayables} cashInHand={cashInHand} profile={merchantProfile} onOpenProfile={() => setShowProfile(true)} />;
       case Tab.BILLING:
         return <Billing products={products} merchantProfile={merchantProfile} onCompleteTransaction={handleTransactionComplete} onAddCustomer={handleAddCustomer} />;
       case Tab.INVENTORY:
@@ -129,7 +156,7 @@ const App: React.FC = () => {
       case Tab.VENDORS:
         return <Vendors vendors={vendors} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onDeleteVendor={handleDeleteVendor} />;
       default:
-        return <Dashboard salesData={salesData} receivables={totalReceivables} payables={totalPayables} profile={merchantProfile} onOpenProfile={() => setShowProfile(true)} />;
+        return <Dashboard salesData={salesData} receivables={totalReceivables} payables={totalPayables} cashInHand={cashInHand} profile={merchantProfile} onOpenProfile={() => setShowProfile(true)} />;
     }
   };
 
@@ -149,57 +176,57 @@ const App: React.FC = () => {
   const valleyPath = "M0,0 C 30 0 30 55 50 55 C 70 55 70 0 100 0";
 
   return (
-    <div className="h-screen w-full max-w-md mx-auto bg-slate-50 flex flex-col overflow-hidden relative shadow-2xl">
+    <div className="h-[100dvh] w-full max-w-md mx-auto bg-slate-50 flex flex-col overflow-hidden relative shadow-2xl">
       {/* Main Content Area */}
-      <main className="flex-1 overflow-hidden relative z-0">
+      <main className="flex-1 overflow-hidden relative">
         {renderContent()}
       </main>
 
       {/* Fluid Bottom Navigation */}
       <nav className="h-[88px] bg-white absolute bottom-0 w-full z-40 rounded-t-[30px] shadow-[0_-5px_30px_rgba(0,0,0,0.03)]">
         <div className="relative w-full h-full flex items-stretch">
-            
-            {/* The Moving 'Valley' Active Indicator */}
-            <div 
-                className="absolute top-0 left-0 h-full w-[20%] transition-transform duration-500 ease-[cubic-bezier(0.2,0,0,1)] z-10 pointer-events-none"
-                style={{ transform: `translateX(${activeIndex * 100}%)` }}
-            >
-                {/* SVG curve matching the background color */}
-                <div className="absolute -top-[1px] left-1/2 -translate-x-1/2 w-[190%] h-[60px] pointer-events-none">
-                     <svg viewBox="0 0 100 60" preserveAspectRatio="none" className="w-full h-full">
-                        <path d={valleyPath} fill="none" stroke="black" strokeWidth="4" className="opacity-[0.03] blur-[2px]" />
-                        <path d={`${valleyPath} Z`} className="fill-slate-50" />
-                        <path d={valleyPath} fill="none" stroke="black" strokeWidth="0.5" className="opacity-10" />
-                     </svg>
-                </div>
 
-                {/* The Floating Circle Button */}
-                <div className="absolute -top-[6px] left-1/2 -translate-x-1/2 w-[54px] h-[54px] bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-200 text-white transform transition-all duration-300 z-20 border-[3px] border-white/10">
-                     <ActiveIcon size={26} />
-                </div>
+          {/* The Moving 'Valley' Active Indicator */}
+          <div
+            className="absolute top-0 left-0 h-full w-[20%] transition-transform duration-500 ease-[cubic-bezier(0.2,0,0,1)] z-10 pointer-events-none"
+            style={{ transform: `translateX(${activeIndex * 100}%)` }}
+          >
+            {/* SVG curve matching the background color */}
+            <div className="absolute -top-[1px] left-1/2 -translate-x-1/2 w-[190%] h-[60px] pointer-events-none">
+              <svg viewBox="0 0 100 60" preserveAspectRatio="none" className="w-full h-full">
+                <path d={valleyPath} fill="none" stroke="black" strokeWidth="4" className="opacity-[0.03] blur-[2px]" />
+                <path d={`${valleyPath} Z`} className="fill-slate-50" />
+                <path d={valleyPath} fill="none" stroke="black" strokeWidth="0.5" className="opacity-10" />
+              </svg>
             </div>
 
-            {/* Navigation Buttons */}
-            {navItems.map((item) => {
-                const isActive = activeTab === item.id;
-                return (
-                    <button 
-                        key={item.id}
-                        onClick={() => setActiveTab(item.id)}
-                        className="flex-1 h-full flex flex-col items-center justify-end pb-5 relative z-20 focus:outline-none touch-manipulation group"
-                    >
-                        <span className={`absolute top-5 transition-all duration-300 ${isActive ? 'opacity-0 scale-50 -translate-y-4' : 'opacity-100 text-slate-400 scale-100'}`}>
-                            <item.icon size={26} strokeWidth={2} className="group-hover:text-slate-600 transition-colors" />
-                        </span>
-                        
-                        <span className={`text-[10px] font-bold transition-all duration-300 ${isActive ? 'translate-y-0 text-emerald-600' : 'text-slate-400 mt-6 group-hover:text-slate-500'}`}>
-                            {item.label}
-                        </span>
+            {/* The Floating Circle Button */}
+            <div className="absolute -top-[6px] left-1/2 -translate-x-1/2 w-[54px] h-[54px] bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-200 text-white transform transition-all duration-300 z-20 border-[3px] border-white/10">
+              <ActiveIcon size={26} />
+            </div>
+          </div>
 
-                        <span className={`absolute bottom-3 w-1.5 h-1.5 bg-emerald-500 rounded-full transition-all duration-300 ${isActive ? 'opacity-100 scale-100' : 'opacity-0 scale-0'}`}></span>
-                    </button>
-                );
-            })}
+          {/* Navigation Buttons */}
+          {navItems.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className="flex-1 h-full flex flex-col items-center justify-end pb-5 relative z-20 focus:outline-none touch-manipulation group"
+              >
+                <span className={`absolute top-5 transition-all duration-300 ${isActive ? 'opacity-0 scale-50 -translate-y-4' : 'opacity-100 text-slate-400 scale-100'}`}>
+                  <item.icon size={26} strokeWidth={2} className="group-hover:text-slate-600 transition-colors" />
+                </span>
+
+                <span className={`text-[10px] font-bold transition-all duration-300 ${isActive ? 'translate-y-0 text-emerald-600' : 'text-slate-400 mt-6 group-hover:text-slate-500'}`}>
+                  {item.label}
+                </span>
+
+                <span className={`absolute bottom-3 w-1.5 h-1.5 bg-emerald-500 rounded-full transition-all duration-300 ${isActive ? 'opacity-100 scale-100' : 'opacity-0 scale-0'}`}></span>
+              </button>
+            );
+          })}
         </div>
       </nav>
     </div>

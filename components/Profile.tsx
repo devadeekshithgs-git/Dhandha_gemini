@@ -21,7 +21,7 @@ const Profile: React.FC<ProfileProps> = ({ profile, onSave, onBack }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 animate-slide-up">
+    <div className="flex flex-col h-[100dvh] bg-slate-50 animate-slide-up absolute inset-0 z-50">
       <div className="bg-white p-4 shadow-sm flex items-center gap-4 sticky top-0 z-10">
         <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full text-slate-600">
           <ArrowLeft size={24} />
@@ -29,16 +29,16 @@ const Profile: React.FC<ProfileProps> = ({ profile, onSave, onBack }) => {
         <h1 className="text-xl font-bold text-slate-800">Business Settings</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-24">
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-32">
         {/* Business Info Card */}
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
           <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
             <Store size={14} /> Shop Details
           </h2>
-          
+
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Shop Name</label>
-            <input 
+            <input
               value={formData.shopName}
               onChange={e => handleChange('shopName', e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 font-bold text-slate-800"
@@ -48,7 +48,7 @@ const Profile: React.FC<ProfileProps> = ({ profile, onSave, onBack }) => {
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Owner Name</label>
-            <input 
+            <input
               value={formData.ownerName}
               onChange={e => handleChange('ownerName', e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 font-medium"
@@ -58,7 +58,7 @@ const Profile: React.FC<ProfileProps> = ({ profile, onSave, onBack }) => {
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Address</label>
-            <textarea 
+            <textarea
               value={formData.address}
               onChange={e => handleChange('address', e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 text-sm"
@@ -73,14 +73,14 @@ const Profile: React.FC<ProfileProps> = ({ profile, onSave, onBack }) => {
           <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
             <CreditCard size={14} /> Payments & UPI
           </h2>
-          
+
           <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 text-xs text-blue-700 leading-relaxed">
             <strong>Note:</strong> Enter your valid UPI ID (e.g., 9876543210@ybl). This will be used to generate QR codes for customers to pay you directly.
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Merchant UPI ID</label>
-            <input 
+            <input
               value={formData.upiId}
               onChange={e => handleChange('upiId', e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 font-bold text-slate-800 font-mono"
@@ -88,9 +88,11 @@ const Profile: React.FC<ProfileProps> = ({ profile, onSave, onBack }) => {
             />
           </div>
         </div>
+      </div>
 
-        {/* Save Button */}
-        <button 
+      {/* Sticky Save Button */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 z-20">
+        <button
           onClick={handleSave}
           className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-emerald-200 active:scale-95 transition-transform flex items-center justify-center gap-2"
         >
