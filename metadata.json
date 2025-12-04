@@ -1,0 +1,7 @@
+{
+  "name": "KiranaFlow",
+  "description": "A smart, minimalistic business management app for Indian Kirana store owners to track billing, inventory, customers, and vendors.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
