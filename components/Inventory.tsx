@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Product } from '../types';
-import { Search, Plus, Save, Edit2, PackageOpen, X, Trash2, ImagePlus, Camera } from 'lucide-react';
+import { Search, Plus, Save, Edit2, PackageOpen, X, Trash2, ImagePlus, Camera, Minus } from 'lucide-react';
 
 interface InventoryProps {
     products: Product[];
@@ -28,6 +28,29 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
         gst: undefined,
         image: undefined
     });
+
+    // Stock Update Modal State
+    const [stockUpdateProduct, setStockUpdateProduct] = useState<Product | null>(null);
+    const [stockToAdd, setStockToAdd] = useState<string>('');
+
+    const openStockUpdate = (product: Product) => {
+        setStockUpdateProduct(product);
+        setStockToAdd('');
+    };
+
+    const handleStockUpdateSave = () => {
+        if (stockUpdateProduct && stockToAdd) {
+            const qty = parseInt(stockToAdd, 10);
+            if (!isNaN(qty) && qty > 0) {
+                onUpdateProduct({
+                    ...stockUpdateProduct,
+                    stock: stockUpdateProduct.stock + qty
+                });
+                setStockUpdateProduct(null);
+                setStockToAdd('');
+            }
+        }
+    };
 
     const filteredProducts = products.filter(p =>
         p.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -77,7 +100,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                 gst: newProduct.gst ? Number(newProduct.gst) : undefined,
                 stock: Number(newProduct.stock) || 0,
                 category: newProduct.category || 'General',
-                image: newProduct.image
+                image: newProduct.image,
+                barcode: newProduct.barcode
             };
             onAddProduct(productToAdd);
             setIsAdding(false);
@@ -194,15 +218,25 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] text-slate-500 uppercase font-bold">GST % (Optional)</label>
+                                        <label className="text-[10px] text-slate-500 uppercase font-bold">Barcode</label>
                                         <input
-                                            type="number"
-                                            value={editForm.gst || ''}
-                                            onChange={e => setEditForm({ ...editForm, gst: e.target.value ? Number(e.target.value) : undefined })}
+                                            type="text"
+                                            value={editForm.barcode || ''}
+                                            onChange={e => setEditForm({ ...editForm, barcode: e.target.value })}
                                             className="w-full p-2 border rounded text-sm"
-                                            placeholder="e.g. 18"
+                                            placeholder="Scan/Type"
                                         />
                                     </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-slate-500 uppercase font-bold">GST % (Optional)</label>
+                                    <input
+                                        type="number"
+                                        value={editForm.gst || ''}
+                                        onChange={e => setEditForm({ ...editForm, gst: e.target.value ? Number(e.target.value) : undefined })}
+                                        className="w-full p-2 border rounded text-sm"
+                                        placeholder="e.g. 18"
+                                    />
                                 </div>
                                 <div className="flex gap-2 mt-2">
                                     <button
@@ -244,15 +278,30 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                                             Profit: ₹{getProfit(product)}
                                         </span>
                                     )}
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${product.stock < 20 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-                                        Qty: {product.stock}
-                                    </span>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <button onClick={() => startEdit(product)} className="p-1.5 bg-slate-50 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
-                                            <Edit2 size={14} />
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${product.stock < 20 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                                            Qty: {product.stock}
+                                        </span>
+                                        <button
+                                            onClick={() => openStockUpdate(product)}
+                                            className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center hover:bg-blue-100 active:scale-90 transition-all shadow-sm border border-blue-100"
+                                            title="Add Stock"
+                                        >
+                                            <Plus size={20} />
                                         </button>
-                                        <button onClick={() => onDeleteProduct(product.id)} className="p-1.5 bg-slate-50 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">
-                                            <Trash2 size={14} />
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <button
+                                            onClick={() => startEdit(product)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all"
+                                        >
+                                            <Edit2 size={12} /> Edit
+                                        </button>
+                                        <button
+                                            onClick={() => onDeleteProduct(product.id)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-white hover:shadow-sm border border-transparent hover:border-red-100 transition-all"
+                                        >
+                                            <Trash2 size={12} /> Delete
                                         </button>
                                     </div>
                                 </div>
@@ -356,6 +405,19 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                                     />
                                 </div>
                                 <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Barcode (Optional)</label>
+                                    <input
+                                        type="text"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
+                                        placeholder="Scan/Type"
+                                        value={newProduct.barcode || ''}
+                                        onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">GST % (Optional)</label>
                                     <input
                                         type="number"
@@ -365,23 +427,22 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                                         onChange={(e) => setNewProduct({ ...newProduct, gst: e.target.value ? Number(e.target.value) : undefined })}
                                     />
                                 </div>
-                            </div>
-
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Category</label>
-                                <select
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
-                                    value={newProduct.category}
-                                    onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                                >
-                                    <option>Staples</option>
-                                    <option>Snacks</option>
-                                    <option>Beverages</option>
-                                    <option>Personal Care</option>
-                                    <option>Household</option>
-                                    <option>Oils</option>
-                                    <option>General</option>
-                                </select>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Category</label>
+                                    <select
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
+                                        value={newProduct.category}
+                                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                                    >
+                                        <option>Staples</option>
+                                        <option>Snacks</option>
+                                        <option>Beverages</option>
+                                        <option>Personal Care</option>
+                                        <option>Household</option>
+                                        <option>Oils</option>
+                                        <option>General</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <button
@@ -389,6 +450,59 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                                 className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-transform mt-2"
                             >
                                 Save Product
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Quick Add Stock Modal */}
+            {stockUpdateProduct && (
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-up">
+                        <div className="bg-blue-600 p-4 flex justify-between items-center text-white">
+                            <h2 className="font-bold text-lg">Receive Stock</h2>
+                            <button onClick={() => setStockUpdateProduct(null)} className="bg-white/20 p-1 rounded-full hover:bg-white/30">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-slate-500">
+                                Adding stock for: <span className="font-bold text-slate-800">{stockUpdateProduct.name}</span>
+                            </p>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Quantity Received</label>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setStockToAdd(prev => String(Math.max(0, (parseInt(prev || '0') - 1))))}
+                                        className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-600 active:scale-95 transition-transform"
+                                    >
+                                        <Minus size={20} />
+                                    </button>
+                                    <input
+                                        autoFocus
+                                        type="number"
+                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 font-bold text-center text-lg"
+                                        placeholder="0"
+                                        value={stockToAdd}
+                                        onChange={(e) => setStockToAdd(e.target.value)}
+                                    />
+                                    <button
+                                        onClick={() => setStockToAdd(prev => String((parseInt(prev || '0') + 1)))}
+                                        className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 active:scale-95 transition-transform"
+                                    >
+                                        <Plus size={20} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleStockUpdateSave}
+                                disabled={!stockToAdd || parseInt(stockToAdd) <= 0}
+                                className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-transform disabled:opacity-50 disabled:active:scale-100"
+                            >
+                                Confirm & Update Stock
                             </button>
                         </div>
                     </div>

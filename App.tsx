@@ -189,7 +189,7 @@ const App: React.FC = () => {
   // Navigation Items Config
   const navItems = [
     { id: Tab.HOME, icon: Home, label: 'Home' },
-    { id: Tab.CUSTOMERS, icon: Users, label: 'Parties' },
+    { id: Tab.CUSTOMERS, icon: Users, label: 'Customers' },
     { id: Tab.BILLING, icon: ScanBarcode, label: 'Bill' },
     { id: Tab.INVENTORY, icon: Package, label: 'Items' },
     { id: Tab.VENDORS, icon: Handshake, label: 'Vendors' },

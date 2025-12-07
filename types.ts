@@ -34,12 +34,21 @@ export interface Customer {
   dues?: CustomerDue[]; // Track individual dues with details
 }
 
+export interface VendorBill {
+  id: string;
+  date: string;
+  amount: number;
+  itemsDescription: string;
+  billImageUrl?: string;
+}
+
 export interface Vendor {
   id: string;
   name: string;
   category: string;
   balance: number; // Positive = We owe them
   nextPaymentDate: string;
+  bills?: VendorBill[];
 }
 
 export interface MerchantProfile {
