@@ -59,6 +59,17 @@ export enum PaymentMethod {
   CREDIT = 'Udhaar (Credit)'
 }
 
+export interface Transaction {
+  id: string;
+  customerId: string | null;
+  customerName: string;
+  amount: number;
+  date: string;
+  paymentMethod: PaymentMethod;
+  itemsCount: number;
+  billId: string;
+}
+
 export interface SalesData {
   day: string;
   amount: number;

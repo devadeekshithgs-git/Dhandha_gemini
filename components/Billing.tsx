@@ -1,6 +1,6 @@
 ﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Product, CartItem, PaymentMethod, Customer, MerchantProfile } from '../types';
-import { Search, Scan, Plus, Minus, Trash2, ArrowRight, X, User, Check, Smartphone, Camera } from 'lucide-react';
+import { Product, CartItem, PaymentMethod, Customer, MerchantProfile, Transaction } from '../types';
+import { Search, Scan, Plus, Minus, Trash2, ArrowRight, X, User, Check, Smartphone, Camera, Clock } from 'lucide-react';
 import { MOCK_CUSTOMERS } from '../constants';
 
 interface BillingProps {
@@ -8,9 +8,10 @@ interface BillingProps {
     merchantProfile: MerchantProfile;
     onCompleteTransaction: (items: CartItem[], total: number, customerId: string | null, paymentMethod: PaymentMethod, cashGiven?: number) => void;
     onAddCustomer: (customer: Customer) => void;
+    recentTransactions: Transaction[];
 }
 
-const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onCompleteTransaction, onAddCustomer }) => {
+const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onCompleteTransaction, onAddCustomer, recentTransactions }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [cart, setCart] = useState<CartItem[]>([]);
     const [showCheckout, setShowCheckout] = useState(false);
@@ -113,20 +114,27 @@ const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onComplete
                         // Check for BarcodeDetector support
                         if ('BarcodeDetector' in window) {
                             // @ts-ignore
-                            const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'qr_code'] });
+                            const barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'code_128', 'code_39'] });
                             interval = window.setInterval(async () => {
                                 if (videoRef.current) {
                                     try {
                                         const barcodes = await barcodeDetector.detect(videoRef.current);
                                         if (barcodes.length > 0) {
                                             const code = barcodes[0].rawValue;
-                                            // Simulate product lookup
-                                            const found = products.find(p => p.id === code || p.barcode === code);
-                                            // For demo, if not found, just pick a random product to simulate success
-                                            const demoProduct = found || products[Math.floor(Math.random() * products.length)];
 
-                                            addToCart(demoProduct);
-                                            setIsScanning(false);
+                                            // Actual Product Lookup
+                                            const found = products.find(p => p.barcode === code || p.id === code);
+
+                                            if (found) {
+                                                addToCart(found);
+                                                setIsScanning(false);
+                                                if (navigator.vibrate) navigator.vibrate(200);
+                                                const msg = new SpeechSynthesisUtterance("Item Added");
+                                                window.speechSynthesis.speak(msg);
+                                            } else {
+                                                // Optional: Debounce this alert so it doesn't spam
+                                                // console.log(`Product with barcode ${code} not found`);
+                                            }
                                         }
                                     } catch (err) {
                                         // console.error(err);
@@ -134,7 +142,7 @@ const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onComplete
                                 }
                             }, 500);
                         } else {
-                            setScanError("Barcode detection not supported on this device. Using simulation.");
+                            setScanError("Barcode Scanner not supported by this browser. Try Chrome on Android.");
                         }
                     }
                 } catch (err) {
@@ -172,6 +180,17 @@ const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onComplete
             <div className="relative bg-white pt-8 pb-4 shadow-sm z-20">
                 <h1 className="text-center text-lg font-bold text-slate-700 tracking-tight">New Bill</h1>
                 <p className="text-center text-xs text-slate-400 mb-2">Scan or search items</p>
+
+                {recentTransactions.length > 0 && (
+                    <div className="flex justify-center mb-1 animate-fade-in">
+                        <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full">
+                            <Check size={10} className="text-emerald-600" />
+                            <span className="text-[10px] font-bold text-emerald-700">
+                                Last: ₹{recentTransactions[0].amount} ({recentTransactions[0].customerName})
+                            </span>
+                        </div>
+                    </div>
+                )}
 
                 {/* The Curve Protrusion */}
                 <div className="absolute top-full left-0 w-full h-[60px] overflow-hidden pointer-events-none z-20">
@@ -212,7 +231,7 @@ const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onComplete
                                             <p className="font-medium text-slate-800">{p.name}</p>
                                             <p className="text-xs text-slate-500">Stock: {p.stock}</p>
                                         </div>
-                                        <span className="font-bold text-emerald-600">â‚¹{p.price}</span>
+                                        <span className="font-bold text-emerald-600">₹{p.price}</span>
                                     </div>
                                 ))
                             ) : (
@@ -236,10 +255,10 @@ const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onComplete
                         <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-start">
                             <div className="flex-1">
                                 <p className="font-semibold text-black">{item.name}</p>
-                                <p className="text-sm text-black">â‚¹{item.price} x {item.quantity}</p>
+                                <p className="text-sm text-black">₹{item.price} x {item.quantity}</p>
                             </div>
                             <div className="flex flex-col items-end gap-2">
-                                <p className="font-bold text-black">â‚¹{item.price * item.quantity}</p>
+                                <p className="font-bold text-black">₹{item.price * item.quantity}</p>
                                 <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-1 border border-slate-100">
                                     <button onClick={() => item.quantity === 1 ? removeItem(item.id) : updateQuantity(item.id, -1)} className="p-1 hover:bg-white rounded shadow-sm transition-colors">
                                         {item.quantity === 1 ? <Trash2 size={16} className="text-red-500" /> : <Minus size={16} className="text-black" />}
@@ -262,7 +281,7 @@ const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onComplete
                         <span className="text-black text-sm font-bold">{cart.length} Items</span>
                         <div className="text-right">
                             <span className="text-xs text-black block font-bold uppercase">Total to Pay</span>
-                            <span className="text-2xl font-bold text-black">â‚¹{totalAmount}</span>
+                            <span className="text-2xl font-bold text-black">₹{totalAmount}</span>
                         </div>
                     </div>
                     <button
@@ -274,11 +293,10 @@ const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onComplete
                 </div>
             )}
 
-            {/* Checkout Modal */}
+            {/* Checkout Modal - Full Screen for Mobile */}
             {showCheckout && (
-
-                <div className="absolute inset-x-0 top-0 bottom-[90px] bg-white z-30 flex flex-col animate-slide-up overflow-hidden rounded-b-[30px] shadow-xl border-b border-slate-100">
-                    <div className="p-4 border-b flex items-center gap-4 bg-white sticky top-0">
+                <div className="fixed inset-0 bg-white z-[60] flex flex-col animate-slide-up">
+                    <div className="p-4 border-b flex items-center gap-4 bg-white shadow-sm shrink-0">
                         <button onClick={() => setShowCheckout(false)} className="p-2 hover:bg-slate-100 rounded-full">
                             <ArrowRight className="rotate-180 text-slate-600" size={24} />
                         </button>
@@ -290,7 +308,7 @@ const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onComplete
                         {/* Total Display */}
                         <div className="text-center py-6 bg-slate-50 rounded-2xl border border-slate-100">
                             <p className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-1">Total Bill Amount</p>
-                            <h1 className="text-4xl font-bold text-slate-900">â‚¹{totalAmount}</h1>
+                            <h1 className="text-4xl font-bold text-slate-900">₹{totalAmount}</h1>
                         </div>
 
                         {/* Customer Section */}
@@ -385,39 +403,69 @@ const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onComplete
                             </h3>
 
                             <div className="grid grid-cols-3 gap-3 mb-4">
-                                {[PaymentMethod.CASH, PaymentMethod.UPI, PaymentMethod.CREDIT].map(method => (
-                                    <button
-                                        key={method}
-                                        onClick={() => setPaymentMethod(method)}
-                                        className={`p-3 rounded-xl border-2 text-sm font-bold flex flex-col items-center gap-1 transition-all ${paymentMethod === method ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-100 text-slate-500'}`}
-                                    >
-                                        {method === PaymentMethod.CASH && "ðŸ’µ"}
-                                        {method === PaymentMethod.UPI && "ðŸ“±"}
-                                        {method === PaymentMethod.CREDIT && "ðŸ“’"}
-                                        <span>{method === PaymentMethod.CREDIT ? 'Credit' : method}</span>
-                                    </button>
-                                ))}
-                            </div>
+                                {[PaymentMethod.CASH, PaymentMethod.UPI, PaymentMethod.CREDIT].map(method => {
+                                    const isCredit = method === PaymentMethod.CREDIT;
+                                    const isDisabled = isCredit && customerMode === 'guest';
 
-                            {/* Specific Payment Logic */}
+                                    return (
+                                        <button
+                                            key={method}
+                                            onClick={() => !isDisabled && setPaymentMethod(method)}
+                                            disabled={isDisabled}
+                                            className={`p-3 rounded-xl border-2 text-sm font-bold flex flex-col items-center gap-1 transition-all ${paymentMethod === method
+                                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                                : isDisabled
+                                                    ? 'border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed opacity-60'
+                                                    : 'border-slate-100 text-slate-500 hover:border-slate-200'
+                                                }`}
+                                        >
+                                            {method === PaymentMethod.CASH && "💵"}
+                                            {method === PaymentMethod.UPI && "📱"}
+                                            {method === PaymentMethod.CREDIT && "📒"}
+                                            <span>{isCredit ? 'Udhaar' : method}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {customerMode === 'guest' && (
+                                <p className="text-[10px] text-center text-slate-400 -mt-2 mb-4">
+                                    * Select a customer to give Udhaar (Credit)
+                                </p>
+                            )}
+
+                            {/* Cash Payment Logic with Quick Buttons */}
                             {paymentMethod === PaymentMethod.CASH && (
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 animate-fade-in">
+                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4 animate-fade-in">
                                     <div className="flex justify-between items-center">
                                         <label className="text-xs font-bold text-slate-500 uppercase">Cash Received</label>
                                         <input
                                             type="number"
-                                            autoFocus
-                                            placeholder="Amount"
-                                            className="w-32 p-2 rounded-lg border border-slate-300 text-right font-bold text-slate-800 outline-none focus:border-emerald-500"
+                                            inputMode="numeric"
+                                            placeholder="0"
+                                            className="w-32 p-3 rounded-lg border border-slate-300 text-right font-bold text-xl text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all"
                                             value={cashGiven}
                                             onChange={e => setCashGiven(e.target.value)}
                                         />
                                     </div>
+
+                                    {/* Quick Cash Buttons */}
+                                    <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
+                                        <button onClick={() => setCashGiven(totalAmount.toString())} className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-emerald-600 shadow-sm active:scale-95 whitespace-nowrap">
+                                            Exact ₹{totalAmount}
+                                        </button>
+                                        <button onClick={() => setCashGiven((Math.ceil(totalAmount / 100) * 100).toString())} className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 shadow-sm active:scale-95 whitespace-nowrap">
+                                            Round ₹{Math.ceil(totalAmount / 100) * 100}
+                                        </button>
+                                        <button onClick={() => setCashGiven((Math.ceil(totalAmount / 500) * 500).toString())} className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 shadow-sm active:scale-95 whitespace-nowrap">
+                                            Round ₹{Math.ceil(totalAmount / 500) * 500}
+                                        </button>
+                                    </div>
+
                                     {cashGivenNum > 0 && (
-                                        <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                                        <div className="flex justify-between items-center pt-3 border-t border-slate-200">
                                             <label className="text-xs font-bold text-slate-500 uppercase">Change to Return</label>
-                                            <span className={`text-lg font-bold ${changeDue >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                â‚¹{changeDue >= 0 ? changeDue : 'Insufficient'}
+                                            <span className={`text-xl font-bold ${changeDue >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                ₹{changeDue >= 0 ? changeDue : 'Insufficient'}
                                             </span>
                                         </div>
                                     )}
@@ -456,14 +504,36 @@ const Billing: React.FC<BillingProps> = ({ products, merchantProfile, onComplete
                         </div>
                     </div>
 
-                    <div className="p-4 border-t bg-white sticky bottom-0">
-                        <button
-                            onClick={handleCheckout}
-                            disabled={paymentMethod === PaymentMethod.CASH && cashGivenNum < totalAmount}
-                            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-base shadow-lg shadow-emerald-200 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100"
-                        >
-                            Confirm
-                        </button>
+                    <div className="p-4 bg-white border-t border-slate-100 shrink-0 safe-area-bottom">
+                        {(() => {
+                            const isCashInvalid = paymentMethod === PaymentMethod.CASH && cashGivenNum < totalAmount;
+                            const isGuestCreditInvalid = paymentMethod === PaymentMethod.CREDIT && customerMode === 'guest';
+                            const isCustomerInvalid = paymentMethod === PaymentMethod.CREDIT && customerMode === 'existing' && !selectedCustomer;
+                            const isNewCustomerInvalid = paymentMethod === PaymentMethod.CREDIT && customerMode === 'new' && (!newCustomerForm.name || !newCustomerForm.phone);
+
+                            const isDisabled = isCashInvalid || isGuestCreditInvalid || isCustomerInvalid || isNewCustomerInvalid;
+
+                            let buttonText = "Confirm Payment";
+                            if (isCashInvalid) buttonText = `Enter ₹${totalAmount - cashGivenNum} More`;
+                            if (isGuestCreditInvalid) buttonText = "Select Customer for Udhaar";
+                            if (isCustomerInvalid) buttonText = "Select a Customer";
+                            if (isNewCustomerInvalid) buttonText = "Enter Customer Details";
+
+                            return (
+                                <button
+                                    onClick={handleCheckout}
+                                    disabled={isDisabled}
+                                    className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2
+                                        ${isDisabled
+                                            ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
+                                            : 'bg-emerald-600 text-white shadow-emerald-200'
+                                        }`}
+                                >
+                                    {isDisabled && <X size={20} />}
+                                    {buttonText}
+                                </button>
+                            );
+                        })()}
                     </div>
                 </div>
             )

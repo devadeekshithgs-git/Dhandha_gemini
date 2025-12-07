@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Customer, CustomerDue } from '../types';
-import { Search, Plus, Phone, MessageCircle, X, Pencil, Trash2, ChevronDown, ChevronUp, IndianRupee, FileText } from 'lucide-react';
+import { Search, Plus, Phone, MessageCircle, X, Pencil, Trash2, ChevronDown, ChevronUp, IndianRupee, FileText, ArrowLeft } from 'lucide-react';
 
 interface CustomersProps {
     customers: Customer[];
@@ -10,11 +10,10 @@ interface CustomersProps {
 }
 
 const Customers: React.FC<CustomersProps> = ({ customers, onAddCustomer, onUpdateCustomer, onDeleteCustomer }) => {
+    const [viewingCustomerId, setViewingCustomerId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
-    const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
-
     const [form, setForm] = useState({ name: '', phone: '', dueAmount: '', dueDescription: '' });
 
     const filtered = customers.filter(c =>
@@ -23,6 +22,7 @@ const Customers: React.FC<CustomersProps> = ({ customers, onAddCustomer, onUpdat
     );
 
     const totalReceivables = customers.reduce((acc, curr) => acc + (curr.balance > 0 ? curr.balance : 0), 0);
+    const selectedCustomer = customers.find(c => c.id === viewingCustomerId);
 
     const sendWhatsApp = (phone: string, balance: number, name: string) => {
         const cleanPhone = phone.replace(/\D/g, '');
@@ -37,10 +37,19 @@ const Customers: React.FC<CustomersProps> = ({ customers, onAddCustomer, onUpdat
         setIsModalOpen(true);
     };
 
-    const openEditModal = (customer: Customer) => {
+    const openEditModal = (customer: Customer, e: React.MouseEvent) => {
+        e.stopPropagation();
         setEditingId(customer.id);
         setForm({ name: customer.name, phone: customer.phone, dueAmount: '', dueDescription: '' });
         setIsModalOpen(true);
+    };
+
+    const handleDelete = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (window.confirm('Are you sure you want to delete this customer?')) {
+            onDeleteCustomer(id);
+            if (viewingCustomerId === id) setViewingCustomerId(null);
+        }
     };
 
     const handleSave = () => {
@@ -124,9 +133,118 @@ const Customers: React.FC<CustomersProps> = ({ customers, onAddCustomer, onUpdat
         }
     };
 
-    const toggleExpanded = (customerId: string) => {
-        setExpandedCustomerId(expandedCustomerId === customerId ? null : customerId);
-    };
+    // Detailed View for Selected Customer
+    if (viewingCustomerId && selectedCustomer) {
+        return (
+            <div className="flex flex-col h-full bg-slate-50 animate-fade-in">
+                {/* Detail Header */}
+                <div className="bg-white px-4 py-4 pt-8 shadow-sm z-20 sticky top-0 flex items-center gap-4">
+                    <button
+                        onClick={() => setViewingCustomerId(null)}
+                        className="p-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors"
+                    >
+                        <ArrowLeft size={24} />
+                    </button>
+                    <div className="flex-1">
+                        <h1 className="text-xl font-bold text-slate-800">{selectedCustomer.name}</h1>
+                        <p className="text-xs text-slate-500">{selectedCustomer.phone}</p>
+                    </div>
+                    <button
+                        onClick={(e) => openEditModal(selectedCustomer, e)}
+                        className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"
+                    >
+                        <Pencil size={18} />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-6">
+                    {/* Summary Card */}
+                    <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 rounded-2xl p-6 text-white shadow-lg shadow-emerald-200">
+                        <p className="text-emerald-100 text-xs font-bold uppercase tracking-wider mb-2">Total Outstanding Due</p>
+                        <div className="flex items-center gap-2 mb-6">
+                            <IndianRupee size={32} />
+                            <span className="text-4xl font-bold">{selectedCustomer.balance.toLocaleString('en-IN')}</span>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => window.open(`tel:${selectedCustomer.phone}`)}
+                                className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-sm py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+                            >
+                                <Phone size={16} /> Call
+                            </button>
+                            <button
+                                onClick={() => sendWhatsApp(selectedCustomer.phone, selectedCustomer.balance, selectedCustomer.name)}
+                                className="flex-1 bg-white text-emerald-800 hover:bg-emerald-50 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-sm"
+                            >
+                                <MessageCircle size={16} /> WhatsApp
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Dues Ledger */}
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                            <FileText size={16} /> Transaction History
+                        </h3>
+
+                        <div className="space-y-3">
+                            {selectedCustomer.dues && selectedCustomer.dues.length > 0 ? (
+                                [...selectedCustomer.dues].reverse().map(due => (
+                                    <div key={due.id} className={`bg-white rounded-xl p-4 border border-slate-100 shadow-sm relative overflow-hidden ${due.paid ? 'opacity-60' : ''}`}>
+                                        {due.paid && (
+                                            <div className="absolute right-0 top-0 bg-emerald-100 text-emerald-600 text-[10px] font-bold px-2 py-1 rounded-bl-lg">
+                                                PAID
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <p className="font-bold text-slate-800 text-base">{due.description}</p>
+                                                <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                                    {due.date}
+                                                </p>
+
+                                                {/* Item Breakdown */}
+                                                {due.items && due.items.length > 0 && (
+                                                    <div className="mt-3 bg-slate-50 rounded-lg p-2 border border-slate-100">
+                                                        {due.items.map((item, idx) => (
+                                                            <div key={idx} className="flex justify-between text-xs text-slate-600 mb-1 last:mb-0">
+                                                                <span>{item.name} <span className="text-slate-400">x{item.quantity}</span></span>
+                                                                <span>₹{item.price}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="flex flex-col items-end gap-3 ml-4">
+                                                <span className={`font-bold text-lg ${due.paid ? 'text-slate-400 line-through' : 'text-red-500'}`}>
+                                                    ₹{due.amount}
+                                                </span>
+
+                                                {!due.paid && (
+                                                    <button
+                                                        onClick={() => markDuePaid(selectedCustomer.id, due.id)}
+                                                        className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-bold rounded-lg hover:bg-emerald-100 active:scale-95 transition-all"
+                                                    >
+                                                        Mark Paid
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-10 text-slate-400 bg-white rounded-2xl border border-slate-100 border-dashed">
+                                    <p>No transactions found</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-full bg-slate-50">
@@ -187,19 +305,29 @@ const Customers: React.FC<CustomersProps> = ({ customers, onAddCustomer, onUpdat
                     <span>Due Amount</span>
                 </div>
                 {filtered.map(customer => (
-                    <div key={customer.id} className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                    <div
+                        key={customer.id}
+                        onClick={() => setViewingCustomerId(customer.id)}
+                        className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden active:scale-[0.98] transition-all cursor-pointer hover:shadow-md"
+                    >
                         <div className="p-4 flex justify-between items-center group">
                             <div>
                                 <h3 className="font-bold text-slate-800">{customer.name}</h3>
                                 <p className="text-xs text-slate-500 mt-0.5">{customer.phone}</p>
 
                                 {/* Edit Actions */}
-                                <div className="flex items-center gap-3 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => openEditModal(customer)} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-blue-600 font-bold uppercase tracking-wide">
-                                        <Pencil size={10} /> Edit
+                                <div className="flex items-center gap-2 mt-3">
+                                    <button
+                                        onClick={(e) => openEditModal(customer, e)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all"
+                                    >
+                                        <Pencil size={12} /> Edit
                                     </button>
-                                    <button onClick={() => onDeleteCustomer(customer.id)} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-red-500 font-bold uppercase tracking-wide">
-                                        <Trash2 size={10} /> Delete
+                                    <button
+                                        onClick={(e) => handleDelete(customer.id, e)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-white hover:shadow-sm border border-transparent hover:border-red-100 transition-all"
+                                    >
+                                        <Trash2 size={12} /> Delete
                                     </button>
                                 </div>
                             </div>
@@ -208,65 +336,23 @@ const Customers: React.FC<CustomersProps> = ({ customers, onAddCustomer, onUpdat
                                     {customer.balance > 0 ? `₹${customer.balance}` : 'Settled'}
                                 </span>
                                 <div className="flex gap-2">
-                                    <button onClick={() => window.open(`tel:${customer.phone}`)} className="p-1.5 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200">
-                                        <Phone size={14} />
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); window.open(`tel:${customer.phone}`); }}
+                                        className="p-3 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200 shadow-sm"
+                                    >
+                                        <Phone size={20} />
                                     </button>
                                     {customer.balance > 0 && (
-                                        <>
-                                            <button
-                                                onClick={() => sendWhatsApp(customer.phone, customer.balance, customer.name)}
-                                                className="p-1.5 bg-green-100 rounded-full text-green-600 hover:bg-green-200 flex items-center gap-1"
-                                            >
-                                                <MessageCircle size={14} />
-                                            </button>
-                                            <button
-                                                onClick={() => toggleExpanded(customer.id)}
-                                                className="p-1.5 bg-blue-100 rounded-full text-blue-600 hover:bg-blue-200"
-                                            >
-                                                {expandedCustomerId === customer.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                                            </button>
-                                        </>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); sendWhatsApp(customer.phone, customer.balance, customer.name); }}
+                                            className="p-3 bg-green-100 rounded-full text-green-600 hover:bg-green-200 flex items-center gap-1 shadow-sm"
+                                        >
+                                            <MessageCircle size={20} />
+                                        </button>
                                     )}
                                 </div>
                             </div>
                         </div>
-
-                        {/* Expanded Dues Section */}
-                        {expandedCustomerId === customer.id && customer.dues && customer.dues.length > 0 && (
-                            <div className="border-t border-slate-100 bg-slate-50 p-4 space-y-3">
-                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                    <FileText size={12} /> Due Details
-                                </h4>
-                                {customer.dues.filter(d => !d.paid).map(due => (
-                                    <div key={due.id} className="bg-white rounded-lg p-3 border border-slate-100">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className="font-medium text-slate-700 text-sm">{due.description}</p>
-                                                <p className="text-[10px] text-slate-400 mt-1">{due.date}</p>
-                                                {due.items && due.items.length > 0 && (
-                                                    <div className="mt-2 space-y-1">
-                                                        {due.items.map((item, idx) => (
-                                                            <p key={idx} className="text-[10px] text-slate-500">
-                                                                • {item.name} x{item.quantity} = ₹{item.price}
-                                                            </p>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex flex-col items-end gap-2">
-                                                <span className="font-bold text-red-500">₹{due.amount}</span>
-                                                <button
-                                                    onClick={() => markDuePaid(customer.id, due.id)}
-                                                    className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold hover:bg-emerald-200"
-                                                >
-                                                    Mark Paid
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </div>
                 ))}
             </div>

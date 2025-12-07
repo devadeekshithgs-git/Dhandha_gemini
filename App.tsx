@@ -8,7 +8,7 @@ import Customers from './components/Customers';
 import Vendors from './components/Vendors';
 import Profile from './components/Profile';
 
-import { Product, CartItem, Customer, Vendor, PaymentMethod, MerchantProfile, CustomerDue } from './types';
+import { Product, CartItem, Customer, Vendor, PaymentMethod, MerchantProfile, CustomerDue, Transaction } from './types';
 import { MOCK_PRODUCTS, MOCK_CUSTOMERS, MOCK_VENDORS, MOCK_SALES_DATA } from './constants';
 
 enum Tab {
@@ -28,6 +28,7 @@ const App: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
   const [vendors, setVendors] = useState<Vendor[]>(MOCK_VENDORS);
   const [salesData, setSalesData] = useState(MOCK_SALES_DATA);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   const [merchantProfile, setMerchantProfile] = useState<MerchantProfile>({
     shopName: 'Shree Ganesh Kirana',
@@ -87,12 +88,37 @@ const App: React.FC = () => {
   };
 
   const handleTransactionComplete = (items: CartItem[], total: number, customerId: string | null, paymentMethod: PaymentMethod, cashGiven?: number) => {
+    // 1. Update Stock
     const itemsMap = new Map(items.map(i => [i.id, i.quantity]));
     setProducts(prev => prev.map(p => {
       const qty = itemsMap.get(p.id);
       return qty ? { ...p, stock: p.stock - qty } : p;
     }));
 
+    // 2. Resolve Customer Name
+    let customerName = 'Guest';
+    let currentCustomer = null;
+    if (customerId) {
+      currentCustomer = customers.find(c => c.id === customerId);
+      if (currentCustomer) customerName = currentCustomer.name;
+    }
+
+    const billId = Date.now().toString().slice(-4);
+
+    // 3. Register Recent Transaction
+    const newTransaction: Transaction = {
+      id: Date.now().toString(),
+      customerId,
+      customerName,
+      amount: total,
+      date: new Date().toLocaleString(),
+      paymentMethod,
+      itemsCount: items.length,
+      billId
+    };
+    setTransactions(prev => [newTransaction, ...prev]);
+
+    // 4. Handle Credit
     if (paymentMethod === PaymentMethod.CREDIT && customerId) {
       setCustomers(prev => prev.map(c => {
         if (c.id === customerId) {
@@ -100,7 +126,7 @@ const App: React.FC = () => {
           const newDue: CustomerDue = {
             id: Date.now().toString(),
             amount: total,
-            description: `Credit purchase - ${items.length} item(s)`,
+            description: `Bill #${billId} • ${items.length} item(s)`,
             items: items.map(item => ({
               name: item.name,
               quantity: item.quantity,
@@ -146,9 +172,9 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case Tab.HOME:
-        return <Dashboard salesData={salesData} receivables={totalReceivables} payables={totalPayables} cashInHand={cashInHand} profile={merchantProfile} onOpenProfile={() => setShowProfile(true)} />;
+        return <Dashboard salesData={salesData} receivables={totalReceivables} payables={totalPayables} cashInHand={cashInHand} profile={merchantProfile} onOpenProfile={() => setShowProfile(true)} recentTransactions={transactions} />;
       case Tab.BILLING:
-        return <Billing products={products} merchantProfile={merchantProfile} onCompleteTransaction={handleTransactionComplete} onAddCustomer={handleAddCustomer} />;
+        return <Billing products={products} merchantProfile={merchantProfile} onCompleteTransaction={handleTransactionComplete} onAddCustomer={handleAddCustomer} recentTransactions={transactions} />;
       case Tab.INVENTORY:
         return <Inventory products={products} onUpdateProduct={handleProductUpdate} onDeleteProduct={handleDeleteProduct} onAddProduct={handleAddProduct} />;
       case Tab.CUSTOMERS:

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { SalesData, MerchantProfile } from '../types';
+import { SalesData, MerchantProfile, Transaction, PaymentMethod } from '../types';
 import { getBusinessInsights } from '../services/geminiService';
-import { Sparkles, IndianRupee, Wallet, TrendingUp, TrendingDown, Minus, Settings } from 'lucide-react';
+import { Sparkles, IndianRupee, Wallet, TrendingUp, TrendingDown, Minus, Settings, Clock, ArrowRight } from 'lucide-react';
 
 interface DashboardProps {
     salesData: SalesData[];
@@ -11,9 +11,10 @@ interface DashboardProps {
     cashInHand: number;
     profile: MerchantProfile;
     onOpenProfile: () => void;
+    recentTransactions: Transaction[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ salesData, receivables, payables, cashInHand, profile, onOpenProfile }) => {
+const Dashboard: React.FC<DashboardProps> = ({ salesData, receivables, payables, cashInHand, profile, onOpenProfile, recentTransactions }) => {
     const [insight, setInsight] = useState<string>('');
     const [loadingInsight, setLoadingInsight] = useState<boolean>(false);
 
@@ -167,6 +168,38 @@ const Dashboard: React.FC<DashboardProps> = ({ salesData, receivables, payables,
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Recent Transactions */}
+                <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                            <Clock size={16} className="text-slate-400" /> Recent Activity
+                        </h3>
+                        <button className="text-xs text-emerald-600 font-bold">View All</button>
+                    </div>
+
+                    <div className="space-y-3">
+                        {recentTransactions.slice(0, 20).map(tx => (
+                            <div key={tx.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                <div>
+                                    <p className="font-bold text-slate-800 text-sm">{tx.customerName}</p>
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-1">
+                                        <span>Items: {tx.itemsCount}</span>
+                                        <span>•</span>
+                                        <span>{tx.paymentMethod === PaymentMethod.CREDIT ? 'Credit' : tx.paymentMethod}</span>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold text-slate-800">₹{tx.amount}</p>
+                                    <p className="text-[10px] text-slate-400">{tx.date.split(',')[1]?.trim() || 'Just now'}</p>
+                                </div>
+                            </div>
+                        ))}
+                        {recentTransactions.length === 0 && (
+                            <p className="text-center text-slate-400 text-xs py-4 italic">No recent transactions</p>
+                        )}
                     </div>
                 </div>
 
