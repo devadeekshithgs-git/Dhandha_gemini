@@ -14,6 +14,8 @@ const Login = () => {
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
+                    // IMPORTANT: This URL must be whitelisted in Supabase Dashboard -> Authentication -> URL Configuration -> Redirect URLs
+                    // If not whitelisted, Supabase will fallback to the default Site URL (usually localhost), causing login to fail on production.
                     redirectTo: window.location.origin
                 }
             });

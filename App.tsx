@@ -93,8 +93,14 @@ const App: React.FC = () => {
     }
   };
 
+  // Helper to get current user ID
+  const getUserId = () => session?.user?.id;
+
   const fetchData = async () => {
     try {
+      // RLS policies automatically filter data by user_id
+      // No need to add .eq('user_id', userId) - Supabase RLS handles this!
+
       // 1. Fetch Products
       const { data: prodData } = await supabase.from('products').select('*');
       if (prodData) setProducts(prodData.map((p: any) => ({
@@ -176,6 +182,12 @@ const App: React.FC = () => {
   };
 
   const handleAddProduct = async (newProduct: Product) => {
+    const userId = getUserId();
+    if (!userId) {
+      alert('You must be logged in to add products');
+      return;
+    }
+
     const dbProduct = {
       id: newProduct.id,
       name: newProduct.name,
@@ -186,7 +198,8 @@ const App: React.FC = () => {
       category: newProduct.category,
       gst: newProduct.gst,
       barcode: newProduct.barcode,
-      image: newProduct.image
+      image: newProduct.image,
+      user_id: userId  // Associate product with current user
     };
 
     const { error } = await supabase.from('products').insert(dbProduct);
@@ -199,12 +212,19 @@ const App: React.FC = () => {
   };
 
   const handleAddCustomer = async (newCustomer: Customer) => {
+    const userId = getUserId();
+    if (!userId) {
+      alert('You must be logged in to add customers');
+      return;
+    }
+
     const dbCustomer = {
       id: newCustomer.id,
       name: newCustomer.name,
       phone: newCustomer.phone,
       balance: newCustomer.balance,
-      last_transaction_date: newCustomer.lastTransactionDate
+      last_transaction_date: newCustomer.lastTransactionDate,
+      user_id: userId  // Associate customer with current user
     };
     const { error } = await supabase.from('customers').insert(dbCustomer);
     if (!error) {
@@ -244,12 +264,19 @@ const App: React.FC = () => {
   };
 
   const handleAddVendor = async (newVendor: Vendor) => {
+    const userId = getUserId();
+    if (!userId) {
+      alert('You must be logged in to add vendors');
+      return;
+    }
+
     const dbVendor = {
       id: newVendor.id,
       name: newVendor.name,
       category: newVendor.category,
       balance: newVendor.balance,
-      next_payment_date: newVendor.nextPaymentDate
+      next_payment_date: newVendor.nextPaymentDate,
+      user_id: userId  // Associate vendor with current user
     };
     const { error } = await supabase.from('vendors').insert(dbVendor);
     if (!error) {
@@ -289,6 +316,12 @@ const App: React.FC = () => {
   };
 
   const handleTransactionComplete = async (items: CartItem[], total: number, customerId: string | null, paymentMethod: PaymentMethod, cashGiven?: number) => {
+    const userId = getUserId();
+    if (!userId) {
+      alert('You must be logged in to complete transactions');
+      return;
+    }
+
     try {
       // 1. Update Stock Locally
       const itemsMap = new Map(items.map(i => [i.id, i.quantity]));
@@ -338,7 +371,8 @@ const App: React.FC = () => {
         payment_method: newTransaction.paymentMethod,
         items_count: newTransaction.itemsCount,
         bill_id: newTransaction.billId,
-        items: items // Store full item details including costPrice at time of sale
+        items: items, // Store full item details including costPrice at time of sale
+        user_id: userId  // Associate transaction with current user
       });
 
       if (transError) throw new Error('Failed to record transaction: ' + transError.message);
@@ -359,7 +393,8 @@ const App: React.FC = () => {
             name: item.name,
             quantity: item.quantity,
             price: item.price * item.quantity
-          }))
+          })),
+          user_id: userId  // Associate customer due with current user
         };
 
         const { error: dueError } = await supabase.from('customer_dues').insert(newDue);
@@ -396,6 +431,12 @@ const App: React.FC = () => {
   };
 
   const handleAddExpense = async (newExpense: Expense) => {
+    const userId = getUserId();
+    if (!userId) {
+      alert('You must be logged in to add expenses');
+      return;
+    }
+
     const dbExpense = {
       id: newExpense.id,
       amount: newExpense.amount,
@@ -403,7 +444,8 @@ const App: React.FC = () => {
       description: newExpense.description,
       date: newExpense.date,
       vendor_id: newExpense.vendorId,
-      vendor_name: newExpense.vendorName
+      vendor_name: newExpense.vendorName,
+      user_id: userId  // Associate expense with current user
     };
 
     const { error } = await supabase.from('expenses').insert(dbExpense);
