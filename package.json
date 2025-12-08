@@ -1,5 +1,5 @@
 {
-  "name": "kiranaflow",
+  "name": "dhandha",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,11 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.2.1",
     "@google/genai": "^1.31.0",
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.86.2",
+    "html5-qrcode": "^2.3.8",
+    "lucide-react": "^0.555.0",
+    "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "recharts": "^3.5.1",
-    "lucide-react": "^0.555.0"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

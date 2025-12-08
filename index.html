@@ -4,7 +4,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-  <title>KiranaFlow</title>
+  <title>Dhandha</title>
+  <link rel="icon" type="image/png" href="/logo.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -26,6 +27,22 @@
       /* Firefox */
       -ms-overflow-style: none;
       /* IE and Edge */
+    }
+
+    .shiny-text {
+      background: linear-gradient(to right, #b45309 20%, #fbbf24 40%, #b45309 60%, #b45309 80%);
+      background-size: 200% auto;
+      color: #000;
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shine 2s linear infinite;
+    }
+
+    @keyframes shine {
+      to {
+        background-position: 200% center;
+      }
     }
   </style>
   <script type="importmap">

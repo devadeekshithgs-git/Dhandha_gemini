@@ -1,9 +1,12 @@
 import React, { useState, useRef } from 'react';
+import { Package, Plus, Search, Filter, Trash2, Edit2, AlertCircle, X, ChevronDown, Check, PackageOpen, LayoutGrid, List as ListIcon, History, ImagePlus, Scan, Minus, Save, Upload, FileDown, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Product } from '../types';
-import { Search, Plus, Save, Edit2, PackageOpen, X, Trash2, ImagePlus, Camera, Minus } from 'lucide-react';
+import BarcodeScanner from './BarcodeScanner';
 
 interface InventoryProps {
     products: Product[];
+    setProducts?: React.Dispatch<React.SetStateAction<Product[]>>; // Optional for transition
     onUpdateProduct: (product: Product) => void;
     onDeleteProduct: (id: string) => void;
     onAddProduct: (product: Product) => void;
@@ -11,13 +14,18 @@ interface InventoryProps {
 
 const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDeleteProduct, onAddProduct }) => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterCategory, setFilterCategory] = useState('All');
+    const [isAdding, setIsAdding] = useState(false);
+    const [stockUpdateProduct, setStockUpdateProduct] = useState<Product | null>(null);
+    const [stockToAdd, setStockToAdd] = useState('0');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<Partial<Product>>({});
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const editFileInputRef = useRef<HTMLInputElement>(null);
 
-    // Add New Modal State
-    const [isAdding, setIsAdding] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const fileImportRef = useRef<HTMLInputElement>(null);
+
+    // New Product Form State
     const [newProduct, setNewProduct] = useState<Partial<Product>>({
         name: '',
         costPrice: 0,
@@ -26,63 +34,21 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
         stock: 0,
         category: 'General',
         gst: undefined,
-        image: undefined
+        image: undefined,
+        barcode: undefined
     });
 
-    // Stock Update Modal State
-    const [stockUpdateProduct, setStockUpdateProduct] = useState<Product | null>(null);
-    const [stockToAdd, setStockToAdd] = useState<string>('');
-
-    const openStockUpdate = (product: Product) => {
-        setStockUpdateProduct(product);
-        setStockToAdd('');
-    };
-
-    const handleStockUpdateSave = () => {
-        if (stockUpdateProduct && stockToAdd) {
-            const qty = parseInt(stockToAdd, 10);
-            if (!isNaN(qty) && qty > 0) {
-                onUpdateProduct({
-                    ...stockUpdateProduct,
-                    stock: stockUpdateProduct.stock + qty
-                });
-                setStockUpdateProduct(null);
-                setStockToAdd('');
-            }
-        }
-    };
-
-    const filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const startEdit = (product: Product) => {
-        setEditingId(product.id);
-        setEditForm({ ...product });
-    };
-
-    const saveEdit = () => {
-        if (editingId && editForm) {
-            const updatedProduct = {
-                ...editForm,
-                price: editForm.sellingPrice || editForm.price // Keep price in sync with sellingPrice
-            } as Product;
-            onUpdateProduct(updatedProduct);
-            setEditingId(null);
-            setEditForm({});
-        }
-    };
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
         const file = e.target.files?.[0];
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                const base64 = reader.result as string;
                 if (isEdit) {
-                    setEditForm({ ...editForm, image: base64 });
+                    setEditForm(prev => ({ ...prev, image: reader.result as string }));
                 } else {
-                    setNewProduct({ ...newProduct, image: base64 });
+                    setNewProduct(prev => ({ ...prev, image: reader.result as string }));
                 }
             };
             reader.readAsDataURL(file);
@@ -90,39 +56,148 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
     };
 
     const handleAddNew = () => {
-        if (newProduct.name && newProduct.sellingPrice !== undefined) {
-            const productToAdd: Product = {
-                id: Date.now().toString(),
-                name: newProduct.name,
-                costPrice: Number(newProduct.costPrice) || 0,
-                sellingPrice: Number(newProduct.sellingPrice) || 0,
-                price: Number(newProduct.sellingPrice) || 0, // Keep price for legacy
-                gst: newProduct.gst ? Number(newProduct.gst) : undefined,
-                stock: Number(newProduct.stock) || 0,
-                category: newProduct.category || 'General',
-                image: newProduct.image,
-                barcode: newProduct.barcode
-            };
-            onAddProduct(productToAdd);
-            setIsAdding(false);
-            setNewProduct({ name: '', costPrice: 0, sellingPrice: 0, price: 0, stock: 0, category: 'General', gst: undefined, image: undefined });
-        }
+        if (!newProduct.name || !newProduct.sellingPrice) return;
+
+        const product: Product = {
+            id: Date.now().toString(),
+            name: newProduct.name,
+            costPrice: newProduct.costPrice || 0,
+            sellingPrice: newProduct.sellingPrice || 0,
+            price: newProduct.sellingPrice || 0, // Fallback
+            stock: newProduct.stock || 0,
+            category: newProduct.category || 'General',
+            gst: newProduct.gst,
+            image: newProduct.image,
+            barcode: newProduct.barcode
+        };
+
+        onAddProduct(product);
+        setIsAdding(false);
+        setNewProduct({
+            name: '',
+            costPrice: 0,
+            sellingPrice: 0,
+            price: 0,
+            stock: 0,
+            category: 'General',
+            gst: undefined,
+            image: undefined,
+            barcode: undefined
+        });
     };
 
-    // Calculate profit margin
-    const getProfit = (product: Product) => {
-        const cost = product.costPrice || 0;
-        const sell = product.sellingPrice || product.price || 0;
-        return sell - cost;
+    const startEdit = (product: Product) => {
+        setEditingId(product.id);
+        setEditForm(product);
+    };
+
+    const saveEdit = () => {
+        if (!editingId) return;
+        const productToUpdate = products.find(p => p.id === editingId);
+        if (productToUpdate) {
+            onUpdateProduct({ ...productToUpdate, ...editForm } as Product);
+        }
+        setEditingId(null);
+        setEditForm({});
+    };
+
+    const openStockUpdate = (product: Product) => {
+        setStockUpdateProduct(product);
+        setStockToAdd('0');
+    };
+
+    const handleStockUpdateSave = () => {
+        if (!stockUpdateProduct || !stockToAdd) return;
+
+        const qty = parseInt(stockToAdd);
+        if (isNaN(qty) || qty <= 0) return;
+
+        onUpdateProduct({ ...stockUpdateProduct, stock: stockUpdateProduct.stock + qty });
+        setStockUpdateProduct(null);
+        setStockToAdd('0');
+    };
+
+    const handleDeleteClick = (id: string) => {
+        onDeleteProduct(id);
+    };
+
+    // Bulk Import Logic
+    const downloadSampleFile = () => {
+        const headers = ['Name', 'Selling Price', 'Cost Price', 'Stock', 'Category', 'Barcode', 'GST'];
+        const sampleData = [
+            { 'Name': 'Maggi Noodles', 'Selling Price': 14, 'Cost Price': 10, 'Stock': 50, 'Category': 'Snacks', 'Barcode': '8901058862998', 'GST': 18 },
+            { 'Name': 'Sugar 1kg', 'Selling Price': 45, 'Cost Price': 40, 'Stock': 20, 'Category': 'Staples', 'Barcode': '', 'GST': 0 }
+        ];
+
+        const ws = XLSX.utils.json_to_sheet(sampleData, { header: headers });
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Template");
+        XLSX.writeFile(wb, "inventory_sample.xlsx", { bookType: 'xlsx' });
+    };
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const data = XLSX.utils.sheet_to_json(ws);
+
+            let addedCount = 0;
+            data.forEach((row: any) => {
+                const name = row['Name'] || row['Item Name'] || row['Product Name'];
+                const price = row['Selling Price'] || row['Price'] || row['MRP'] || 0;
+
+                if (name && price) {
+                    const newProd: Product = {
+                        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                        name: name,
+                        sellingPrice: Number(price),
+                        costPrice: Number(row['Cost Price'] || row['Cost'] || 0),
+                        price: Number(price),
+                        stock: Number(row['Stock'] || row['Qty'] || row['Quantity'] || 0),
+                        category: row['Category'] || 'General',
+                        gst: row['GST'] ? Number(row['GST']) : undefined,
+                        barcode: row['Barcode'] ? String(row['Barcode']) : undefined,
+                        image: undefined
+                    };
+                    onAddProduct(newProd);
+                    addedCount++;
+                }
+            });
+
+            if (addedCount > 0) {
+                alert(`Successfully imported ${addedCount} items!`);
+                setShowImportModal(false);
+            } else {
+                alert("No valid items found. Please use the sample template.");
+            }
+        };
+        reader.readAsBinaryString(file);
+        // Reset input
+        e.target.value = '';
+    };
+
+    const filteredProducts = products.filter(p =>
+        (filterCategory === 'All' || p.category === filterCategory) &&
+        (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.barcode === searchTerm)
+    );
+
+    const getProfit = (p: Product) => {
+        if (!p.costPrice) return 0;
+        return (p.sellingPrice || p.price) - p.costPrice;
     };
 
     return (
         <div className="flex flex-col h-full bg-slate-50">
-
             {/* Header with U-Shaped Valley */}
             <div className="relative bg-white pt-8 pb-4 shadow-sm z-20">
-                <h1 className="text-center text-lg font-bold text-slate-700 tracking-tight">Manage Inventory</h1>
-                <p className="text-center text-xs text-slate-400 mb-2">Track stock & prices</p>
+                <h1 className="text-center text-lg font-bold text-blue-800 tracking-tight">Inventory Management</h1>
+                <p className="text-center text-xs text-blue-600 mb-2">{products.length} Items Total</p>
 
                 {/* The Curve Protrusion */}
                 <div className="absolute top-full left-0 w-full h-[60px] overflow-hidden pointer-events-none z-20">
@@ -130,6 +205,15 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                         <path d="M 38 0 C 40 0 40 50 50 50 C 60 50 60 0 62 0 Z" fill="currentColor" />
                     </svg>
                 </div>
+
+                {/* Import Button (Top Left) */}
+                <button
+                    onClick={() => setShowImportModal(true)}
+                    className="absolute top-6 left-6 p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 active:scale-95 transition-all shadow-sm border border-blue-100 z-30"
+                    title="Import Inventory"
+                >
+                    <Upload size={20} />
+                </button>
 
                 {/* The Add Button */}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 z-30 -mt-2">
@@ -142,49 +226,63 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                 </div>
             </div>
 
-            <div className="mt-16 px-6 pb-2">
-                <div className="relative group">
+            {/* Search and Filters */}
+            <div className="mt-16 px-6 flex gap-2">
+                <div className="flex-1 relative group">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
                     <input
                         type="text"
                         placeholder="Search items..."
-                        className="w-full bg-white pl-12 pr-6 py-3.5 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)] focus:shadow-[0_4px_12px_rgba(0,0,0,0.12)] border border-slate-100 outline-none transition-all text-sm font-medium"
+                        className="w-full bg-white pl-12 pr-4 py-3.5 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)] focus:shadow-[0_4px_12px_rgba(0,0,0,0.12)] border border-slate-100 outline-none transition-all text-sm font-medium"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+                <div className="relative">
+                    <select
+                        className="appearance-none bg-white border border-slate-100 text-slate-700 py-3.5 pl-4 pr-10 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.08)] outline-none font-medium text-sm h-full"
+                        value={filterCategory}
+                        onChange={(e) => setFilterCategory(e.target.value)}
+                    >
+                        <option>All</option>
+                        <option>Staples</option>
+                        <option>Snacks</option>
+                        <option>Beverages</option>
+                        <option>Personal Care</option>
+                        <option>Household</option>
+                    </select>
+                    <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 pt-2 space-y-3 pb-24">
+            {/* Product List */}
+            <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-3">
                 {filteredProducts.map(product => (
-                    <div key={product.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                    <div key={product.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-3 animate-fade-in">
                         {editingId === product.id ? (
                             <div className="space-y-3">
-                                {/* Image Upload for Edit */}
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 mb-2">
                                     <div
-                                        onClick={() => editFileInputRef.current?.click()}
-                                        className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center cursor-pointer hover:bg-slate-200 transition-colors overflow-hidden"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center cursor-pointer overflow-hidden border-2 border-dashed border-slate-300 relative"
                                     >
-                                        {editForm.image ? (
-                                            <img src={editForm.image} alt="Product" className="w-full h-full object-cover" />
+                                        {(editForm.image || product.image) ? (
+                                            <img src={editForm.image || product.image} className="w-full h-full object-cover" />
                                         ) : (
-                                            <Camera size={24} className="text-slate-400" />
+                                            <ImagePlus size={20} className="text-slate-400" />
                                         )}
+                                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                            <Edit2 size={12} className="text-white" />
+                                        </div>
                                     </div>
-                                    <input
-                                        ref={editFileInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={(e) => handleImageUpload(e, true)}
-                                    />
-                                    <input
-                                        value={editForm.name}
-                                        onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                                        className="flex-1 p-2 border rounded font-bold text-sm"
-                                        placeholder="Product Name"
-                                    />
+                                    <div className="flex-1">
+                                        <label className="text-[10px] text-slate-500 uppercase font-bold">Item Name</label>
+                                        <input
+                                            value={editForm.name}
+                                            onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                                            className="w-full p-2 border rounded text-sm font-bold"
+                                        />
+                                    </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
@@ -298,7 +396,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                                             <Edit2 size={12} /> Edit
                                         </button>
                                         <button
-                                            onClick={() => onDeleteProduct(product.id)}
+                                            onClick={() => handleDeleteClick(product.id)}
                                             className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-white hover:shadow-sm border border-transparent hover:border-red-100 transition-all"
                                         >
                                             <Trash2 size={12} /> Delete
@@ -362,6 +460,33 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                                 </div>
                             </div>
 
+                            {/* Full Width Scan Button */}
+                            <div className="flex flex-col">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Barcode (Optional)</label>
+                                <button
+                                    onClick={() => setShowScanner(true)}
+                                    className={`w-full p-3 rounded-xl border-dashed border-2 flex items-center justify-center gap-2 font-bold transition-all ${newProduct.barcode ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-blue-300 bg-blue-50 text-blue-600 hover:border-blue-400 hover:bg-blue-100'}`}
+                                >
+                                    {newProduct.barcode ? (
+                                        <>
+                                            <Scan size={20} />
+                                            <span className="text-sm font-bold">{newProduct.barcode}</span>
+                                            <span
+                                                onClick={(e) => { e.stopPropagation(); setNewProduct({ ...newProduct, barcode: '' }) }}
+                                                className="ml-2 p-1 bg-white rounded-full text-slate-400 hover:text-red-500 shadow-sm"
+                                            >
+                                                <X size={14} />
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Scan size={20} />
+                                            <span>Scan Barcode</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cost Price (₹)</label>
@@ -405,19 +530,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Barcode (Optional)</label>
-                                    <input
-                                        type="text"
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
-                                        placeholder="Scan/Type"
-                                        value={newProduct.barcode || ''}
-                                        onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">GST % (Optional)</label>
                                     <input
                                         type="number"
@@ -427,27 +539,28 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                                         onChange={(e) => setNewProduct({ ...newProduct, gst: e.target.value ? Number(e.target.value) : undefined })}
                                     />
                                 </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Category</label>
-                                    <select
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500"
-                                        value={newProduct.category}
-                                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                                    >
-                                        <option>Staples</option>
-                                        <option>Snacks</option>
-                                        <option>Beverages</option>
-                                        <option>Personal Care</option>
-                                        <option>Household</option>
-                                        <option>Oils</option>
-                                        <option>General</option>
-                                    </select>
-                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Category</label>
+                                <select
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium text-slate-700"
+                                    value={newProduct.category}
+                                    onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                                >
+                                    <option>Staples</option>
+                                    <option>Snacks</option>
+                                    <option>Beverages</option>
+                                    <option>Personal Care</option>
+                                    <option>Household</option>
+                                    <option>Oils</option>
+                                    <option>General</option>
+                                </select>
                             </div>
 
                             <button
                                 onClick={handleAddNew}
-                                className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-transform mt-2"
+                                className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-transform mt-4"
                             >
                                 Save Product
                             </button>
@@ -504,6 +617,70 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpdateProduct, onDele
                             >
                                 Confirm & Update Stock
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Scanner Modal */}
+            {showScanner && (
+                <BarcodeScanner
+                    onScanSuccess={(code) => {
+                        setNewProduct({ ...newProduct, barcode: code });
+                        setShowScanner(false);
+                    }}
+                    onClose={() => setShowScanner(false)}
+                />
+            )}
+
+            {/* Import Modal */}
+            {showImportModal && (
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-up">
+                        <div className="bg-slate-800 p-4 flex justify-between items-center text-white">
+                            <h2 className="font-bold text-lg flex items-center gap-2"><FileSpreadsheet size={20} /> Bulk Import</h2>
+                            <button onClick={() => setShowImportModal(false)} className="bg-white/20 p-1 rounded-full hover:bg-white/30">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            <div className="text-center space-y-2">
+                                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <Upload size={32} />
+                                </div>
+                                <h3 className="font-bold text-slate-800">Upload Inventory File</h3>
+                                <p className="text-sm text-slate-500">Supports .xlsx and .csv files</p>
+                            </div>
+
+                            <button
+                                onClick={downloadSampleFile}
+                                className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl flex items-center justify-center gap-2 text-slate-600 font-bold hover:bg-slate-50 hover:border-slate-400 transition-all text-sm"
+                            >
+                                <FileDown size={18} /> Download Sample Template
+                            </button>
+
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-slate-200"></div>
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-white px-2 text-slate-400 font-bold tracking-wider">Then</span>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => fileImportRef.current?.click()}
+                                className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-transform flex items-center justify-center gap-2"
+                            >
+                                <Upload size={18} /> Select File to Upload
+                            </button>
+                            <input
+                                ref={fileImportRef}
+                                type="file"
+                                accept=".xlsx, .xls, .csv"
+                                className="hidden"
+                                onChange={handleFileUpload}
+                            />
                         </div>
                     </div>
                 </div>

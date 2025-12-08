@@ -45,6 +45,7 @@ export interface VendorBill {
 export interface Vendor {
   id: string;
   name: string;
+  phone?: string;
   category: string;
   balance: number; // Positive = We owe them
   nextPaymentDate: string;
@@ -57,6 +58,7 @@ export interface MerchantProfile {
   upiId: string;
   phone: string;
   address: string;
+  geminiApiKey?: string;
 }
 
 export enum PaymentMethod {
@@ -77,6 +79,17 @@ export interface Transaction {
   paymentMethod: PaymentMethod;
   itemsCount: number;
   billId: string;
+  items?: CartItem[]; // To store historical item details and cost
+}
+
+export interface Expense {
+  id: string;
+  amount: number;
+  category: string;
+  description: string;
+  date: string;
+  vendorId?: string;
+  vendorName?: string;
 }
 
 export interface SalesData {

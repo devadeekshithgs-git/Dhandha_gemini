@@ -1,6 +1,6 @@
 {
-  "name": "KiranaFlow",
-  "description": "A smart, minimalistic business management app for Indian Kirana store owners to track billing, inventory, customers, and vendors.",
+  "name": "Dhandha",
+  "description": "A smart, minimalistic business management app for Indian business owners to track billing, inventory, customers, and vendors.",
   "requestFramePermissions": [
     "camera"
   ]

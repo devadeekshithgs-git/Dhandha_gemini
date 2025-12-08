@@ -1,30 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { SalesData, MerchantProfile, Transaction, PaymentMethod } from '../types';
+import { MerchantProfile, Transaction, PaymentMethod, Expense } from '../types';
 import { getBusinessInsights } from '../services/geminiService';
 import { Sparkles, IndianRupee, Wallet, TrendingUp, TrendingDown, Minus, Settings, Clock, ArrowRight } from 'lucide-react';
 
 interface DashboardProps {
-    salesData: SalesData[];
     receivables: number;
     payables: number;
     cashInHand: number;
     profile: MerchantProfile;
     onOpenProfile: () => void;
     recentTransactions: Transaction[];
+    expenses: Expense[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ salesData, receivables, payables, cashInHand, profile, onOpenProfile, recentTransactions }) => {
+const Dashboard: React.FC<DashboardProps> = ({ receivables, payables, cashInHand, profile, onOpenProfile, recentTransactions, expenses }) => {
     const [insight, setInsight] = useState<string>('');
     const [loadingInsight, setLoadingInsight] = useState<boolean>(false);
 
-    const revenue = salesData.reduce((acc, curr) => acc + curr.amount, 0);
-    const expenses = Math.floor(revenue * 0.72);
-    const profit = revenue - expenses;
+    // Calculate Real Metrics
+    const totalRevenue = recentTransactions.reduce((acc, curr) => acc + curr.amount, 0);
+    const totalOpExpenses = expenses.reduce((acc, curr) => acc + curr.amount, 0);
+
+    // Calculate COGS (Cost of Goods Sold)
+    const totalCOGS = recentTransactions.reduce((sum, t) => {
+        // If items are present, calculate exact cost
+        if (t.items && t.items.length > 0) {
+            return sum + t.items.reduce((isum, item) => isum + ((item.costPrice || 0) * item.quantity), 0);
+        }
+        // Fallback: Assume 20% margin if no item details (Revenue * 0.8 is Cost)
+        return sum + (t.amount * 0.8);
+    }, 0);
+
+    const netProfit = totalRevenue - totalCOGS - totalOpExpenses;
+
+    // Generate Chart Data (Last 7 Days)
+    const chartData = useMemo(() => {
+        const data = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toLocaleDateString();
+
+            // Filter transactions for this day
+            // Note: t.date is toLocaleString(), so split by ',' calls date part
+            const dayTotal = recentTransactions
+                .filter(t => t.date.split(',')[0] === dateStr)
+                .reduce((sum, t) => sum + t.amount, 0);
+
+            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+            data.push({ day: dayName, amount: dayTotal });
+        }
+        return data;
+    }, [recentTransactions]);
 
     const handleGetInsight = async () => {
         setLoadingInsight(true);
-        const result = await getBusinessInsights(salesData, receivables, payables);
+        // Pass summarized chart data for insights
+        const result = await getBusinessInsights(chartData, receivables, payables, profile.geminiApiKey || '');
         setInsight(result);
         setLoadingInsight(false);
     };
@@ -33,16 +66,14 @@ const Dashboard: React.FC<DashboardProps> = ({ salesData, receivables, payables,
         <div className="flex flex-col h-full overflow-y-auto pb-28 bg-slate-50">
             {/* Header */}
             <header className="p-6 pb-2 flex justify-between items-start">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Namaste, {profile.ownerName || 'Owner Ji'}</h1>
-                    <p className="text-sm text-slate-500">{profile.shopName || "My Kirana Store"}</p>
+                <div className="flex items-center gap-3">
+                    <img src="/logo.png" alt="Logo" className="w-12 h-12 rounded-xl shadow-sm bg-white" />
+                    <div>
+                        <h1 className="text-2xl font-bold shiny-text">Namaste, {profile.ownerName || 'Owner Ji'} 🙏</h1>
+                        <p className="text-sm text-slate-500">{profile.shopName || "My Dhandha"}</p>
+                    </div>
                 </div>
-                <button
-                    onClick={onOpenProfile}
-                    className="p-2 bg-white border border-slate-200 rounded-full text-slate-600 shadow-sm active:scale-95 transition-transform"
-                >
-                    <Settings size={20} />
-                </button>
+
             </header>
 
             <div className="px-6 space-y-6 mt-4">
@@ -51,32 +82,33 @@ const Dashboard: React.FC<DashboardProps> = ({ salesData, receivables, payables,
                 <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                     <h2 className="text-sm font-bold text-slate-800 mb-6">Profit & Loss</h2>
 
-                    <div className="flex items-center justify-between gap-2 mb-6">
+                    <div className="flex items-stretch justify-between gap-2 mb-6">
                         {/* Revenue */}
-                        <div className="flex-1 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <div className="flex-1 bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col justify-center">
                             <div className="flex items-center gap-2 mb-2">
                                 <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
                                     <Wallet size={14} />
                                 </div>
                                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Revenue</span>
                             </div>
-                            <h3 className="text-lg font-bold text-slate-800">₹{revenue.toLocaleString('en-IN')}</h3>
+                            <h3 className="text-lg font-bold text-slate-800">₹{totalRevenue.toLocaleString('en-IN')}</h3>
                         </div>
 
                         {/* Minus Sign */}
-                        <div className="w-6 h-6 flex items-center justify-center bg-slate-100 rounded-full text-slate-400">
+                        <div className="w-6 h-6 flex items-center justify-center bg-slate-100 rounded-full text-slate-400 self-center">
                             <Minus size={14} />
                         </div>
 
                         {/* Expense */}
-                        <div className="flex-1 bg-red-50/50 p-4 rounded-2xl border border-red-100/50">
+                        <div className="flex-1 bg-red-50/50 p-4 rounded-2xl border border-red-100/50 flex flex-col justify-center">
                             <div className="flex items-center gap-2 mb-2">
                                 <div className="p-1.5 bg-red-100 text-red-500 rounded-lg">
                                     <TrendingDown size={14} />
                                 </div>
                                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Expense</span>
                             </div>
-                            <h3 className="text-lg font-bold text-red-600">₹{expenses.toLocaleString('en-IN')}</h3>
+                            <h3 className="text-lg font-bold text-red-600">₹{(totalOpExpenses + totalCOGS).toLocaleString('en-IN')}</h3>
+                            <p className="text-[10px] text-red-400 mt-1">OpEx + Cost</p>
                         </div>
                     </div>
 
@@ -88,7 +120,9 @@ const Dashboard: React.FC<DashboardProps> = ({ salesData, receivables, payables,
                             </div>
                             <div>
                                 <p className="text-xs font-bold text-emerald-600 mb-1">Net Profit</p>
-                                <h3 className="text-2xl font-bold text-emerald-700">₹{profit.toLocaleString('en-IN')}</h3>
+                                <h3 className={`text-2xl font-bold ${netProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                                    ₹{netProfit.toLocaleString('en-IN')}
+                                </h3>
                             </div>
                         </div>
                     </div>
@@ -138,7 +172,7 @@ const Dashboard: React.FC<DashboardProps> = ({ salesData, receivables, payables,
                     </div>
                     <div className="h-48 w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={salesData}>
+                            <AreaChart data={chartData}>
                                 <defs>
                                     <linearGradient id="colorAmt" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />

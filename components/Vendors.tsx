@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Vendor, VendorBill } from '../types';
+import { Vendor, VendorBill, Expense } from '../types';
 import { Truck, Calendar, ArrowRight, Plus, X, Pencil, Trash2, Search, ChevronDown, ChevronUp, FileText, Image as ImageIcon, Upload } from 'lucide-react';
 
 interface VendorsProps {
@@ -7,9 +7,10 @@ interface VendorsProps {
     onAddVendor: (vendor: Vendor) => void;
     onUpdateVendor: (vendor: Vendor) => void;
     onDeleteVendor: (id: string) => void;
+    expenses: Expense[];
 }
 
-const Vendors: React.FC<VendorsProps> = ({ vendors, onAddVendor, onUpdateVendor, onDeleteVendor }) => {
+const Vendors: React.FC<VendorsProps> = ({ vendors, onAddVendor, onUpdateVendor, onDeleteVendor, expenses }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -238,34 +239,54 @@ const Vendors: React.FC<VendorsProps> = ({ vendors, onAddVendor, onUpdateVendor,
                                     {/* Purchase History */}
                                     <div className="bg-slate-50 rounded-xl p-4">
                                         <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1">
-                                            <FileText size={12} /> Purchase History
+                                            <FileText size={12} /> Purchase & Expense History
                                         </h4>
                                         <div className="space-y-3">
-                                            {vendor.bills && vendor.bills.length > 0 ? (
-                                                vendor.bills.map(bill => (
-                                                    <div key={bill.id} className="bg-white p-3 rounded-lg shadow-sm border border-slate-100 flex gap-3">
-                                                        <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-                                                            {bill.billImageUrl ? (
-                                                                <img src={bill.billImageUrl} alt="Bill" className="w-full h-full object-cover" />
+                                            {(() => {
+                                                const vendorExpenses = expenses.filter(e => e.vendorId === vendor.id);
+                                                const allHistory = [
+                                                    ...(vendor.bills || []).map(b => ({ ...b, type: 'bill' })),
+                                                    ...vendorExpenses.map(e => ({
+                                                        id: e.id,
+                                                        date: e.date,
+                                                        amount: e.amount,
+                                                        itemsDescription: e.description || e.category,
+                                                        billImageUrl: undefined,
+                                                        type: 'expense'
+                                                    }))
+                                                ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                                                if (allHistory.length === 0) {
+                                                    return (
+                                                        <div className="text-center py-4 text-slate-400 text-xs">
+                                                            No past bills or expenses.
+                                                        </div>
+                                                    );
+                                                }
+
+                                                return allHistory.map(item => (
+                                                    <div key={item.id} className="bg-white p-3 rounded-lg shadow-sm border border-slate-100 flex gap-3">
+                                                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${item.type === 'expense' ? 'bg-red-50 text-red-400' : 'bg-slate-100 text-slate-300'}`}>
+                                                            {item.billImageUrl ? (
+                                                                <img src={item.billImageUrl} alt="Bill" className="w-full h-full object-cover" />
                                                             ) : (
-                                                                <FileText size={20} className="text-slate-300" />
+                                                                item.type === 'expense' ? <IndianRupee size={20} /> : <FileText size={20} />
                                                             )}
                                                         </div>
                                                         <div className="flex-1">
                                                             <div className="flex justify-between items-start">
-                                                                <p className="font-bold text-slate-800 text-sm">{bill.itemsDescription}</p>
-                                                                <span className="font-bold text-orange-600 text-sm">₹{bill.amount}</span>
+                                                                <p className="font-bold text-slate-800 text-sm">{item.itemsDescription}</p>
+                                                                <span className={`font-bold text-sm ${item.type === 'expense' ? 'text-red-600' : 'text-orange-600'}`}>₹{item.amount}</span>
                                                             </div>
-                                                            <p className="text-[10px] text-slate-400 mt-1">{bill.date}</p>
-                                                            {bill.billImageUrl && <span className="text-[10px] text-blue-500 font-bold mt-1 inline-block">View Bill</span>}
+                                                            <div className="flex justify-between items-center mt-1">
+                                                                <p className="text-[10px] text-slate-400">{item.date} • {item.type === 'expense' ? 'Direct Expense' : 'Bill'}</p>
+                                                                {item.billImageUrl && <span className="text-[10px] text-blue-500 font-bold">View Bill</span>}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                ))
-                                            ) : (
-                                                <div className="text-center py-4 text-slate-400 text-xs">
-                                                    No past bills recorded.
-                                                </div>
-                                            )}
+                                                ));
+                                            })()}
+
                                         </div>
                                     </div>
                                 </div>
