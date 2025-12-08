@@ -3,14 +3,25 @@ import { MerchantProfile } from '../types';
 import { Store, CreditCard, Save, ArrowLeft, Sparkles, ExternalLink, Check, HelpCircle } from 'lucide-react';
 
 interface ProfileProps {
-  profile: MerchantProfile;
+  profile: MerchantProfile | null;
   onSave: (profile: MerchantProfile) => void;
   onBack: () => void;
   onShowTour: () => void;
 }
 
+// Default empty profile to prevent crashes when profile is null
+const defaultProfile: MerchantProfile = {
+  shopName: '',
+  ownerName: '',
+  upiId: '',
+  phone: '',
+  address: '',
+  geminiApiKey: ''
+};
+
 const Profile: React.FC<ProfileProps> = ({ profile, onSave, onBack, onShowTour }) => {
-  const [formData, setFormData] = useState<MerchantProfile>(profile);
+  // Use profile if available, otherwise use default empty values
+  const [formData, setFormData] = useState<MerchantProfile>(profile || defaultProfile);
 
   const handleChange = (field: keyof MerchantProfile, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
